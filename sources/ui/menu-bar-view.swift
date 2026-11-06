@@ -1,27 +1,5 @@
 import SwiftUI
 
-@MainActor
-enum MenuBarIcon {
-    static let idle = make(pressed: false)
-    static let pressed = make(pressed: true)
-
-    private static func make(pressed: Bool) -> NSImage {
-        let symbol = NSImage(systemSymbolName: "command", accessibilityDescription: nil)!
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
-            if pressed {
-                NSColor.black.setFill()
-                NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
-            }
-            let inset: CGFloat = pressed ? 3 : 1
-            symbol.draw(in: rect.insetBy(dx: inset, dy: inset), from: .zero,
-                        operation: pressed ? .destinationOut : .sourceOver, fraction: 1)
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
-}
-
 struct MenuBarView: View {
     @ObservedObject var app: AppState
 
@@ -30,7 +8,7 @@ struct MenuBarView: View {
         Text("触摸：\(app.fingerCount) 指")
         Toggle("启用", isOn: $app.enabled)
         Divider()
-        Button("紧急释放 ⌘") { app.emergencyRelease() }
+        Button("紧急释放修饰键") { app.emergencyRelease() }
         Button("重新连接") { app.restart() }
         if app.state == .unavailable {
             Text(app.message)

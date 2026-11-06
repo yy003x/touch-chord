@@ -37,15 +37,23 @@ struct SettingsView: View {
     @ObservedObject var app: AppState
     var body: some View {
         Form {
-            Section("三指触摸 → Command") {
+            Section("触摸按键") {
                 Toggle("启用 TouchChord", isOn: $app.enabled)
-                Toggle("三指触摸触发", isOn: $app.threeFingerEnabled)
+                modifierPicker("2 指触摸", selection: $app.twoFingerKey)
+                modifierPicker("3 指触摸", selection: $app.threeFingerKey)
+                modifierPicker("4 指触摸", selection: $app.fourFingerKey)
                 HStack {
                     Text("激活防抖")
                     Slider(value: $app.debounceMilliseconds, in: 0...200, step: 5)
                     Text("\(Int(app.debounceMilliseconds)) ms").monospacedDigit().frame(width: 60)
                 }
-                Text("三指或更多时保持 ⌘；少于三指立即释放。Escape 可在模拟按住时紧急释放。")
+                Text("精确匹配手指数；换档先释放旧键再激活新键。0、1、5 指及以上不触发。Escape 紧急释放后须全部抬起再触摸。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("修饰键持续按住；回车、Esc 每次稳定触摸触发一次，不连发。同名物理键按住时跳过触发。")
+                    .font(.caption).foregroundStyle(.secondary)
+                LabeledContent("轻点来点按", value: app.tapClickStatus.title)
+                Button("打开触控板设置…") { app.openTrackpadSettings() }
+                Text("请先关闭系统“轻点来点按”。两指滚动、缩放和多指系统手势仍可能冲突，本功能不会屏蔽这些手势。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("系统集成") {
@@ -68,13 +76,21 @@ struct SettingsView: View {
                 Text("\(app.stateTitle) · \(app.fingerCount) 指")
                 Text(app.message).font(.caption).textSelection(.enabled)
                 Toggle("显示调试信息", isOn: $app.showDebug)
-                Button("紧急释放 ⌘") { app.emergencyRelease() }
+                Button("紧急释放修饰键") { app.emergencyRelease() }
             }
             Text("使用 Apple 私有触控板 API，仅在当前开发设备验证。系统升级后请重新验证；不保证进程被强制杀死时仍能执行清理。")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: 600)
-        .onAppear { app.refreshPermissions(); app.refreshLogin() }
+        .frame(width: 560, height: 760)
+        .onAppear { app.refreshPermissions(); app.refreshLogin(); app.refreshTouchPreference() }
+    }
+
+    private func modifierPicker(_ title: String, selection: Binding<TouchKey?>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(TouchKey.allCases) { key in Text(key.title).tag(Optional(key)) }
+            Text("不触发").tag(TouchKey?.none)
+        }
+        .pickerStyle(.menu)
     }
 }

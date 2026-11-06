@@ -11,7 +11,7 @@ struct TriKeyApp: App {
         MenuBarExtra {
             MenuBarView(app: app)
         } label: {
-            Image(nsImage: app.commandPressed ? MenuBarIcon.pressed : MenuBarIcon.idle)
+            Image(nsImage: MenuBarIcon.image(for: app.activeKey))
                 .accessibilityLabel("TouchChord · \(app.stateTitle)")
         }
     }

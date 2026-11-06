@@ -1,10 +1,12 @@
 import Foundation
 
 struct TouchStateMachine {
-    enum State: String { case idle, commandPressed = "command_pressed", disabled, unavailable }
-    enum Action: Equatable { case press, release }
+    enum State: String { case idle, modifierPressed = "modifier_pressed", keyTriggered = "key_triggered", disabled, unavailable }
+    enum Action: Equatable { case press(TouchKey), tap(TouchKey), release }
     private(set) var state: State = .disabled
     private(set) var count = 0
+    private(set) var activeKey: TouchKey?
+    var bindings = TouchBindings()
     private var candidateSince: Double?
     private var lastFrame: Double?
     private var needsRelease = true
@@ -12,6 +14,7 @@ struct TouchStateMachine {
 
     mutating func enable() {
         state = .idle
+        activeKey = nil
         count = 0
         candidateSince = nil
         lastFrame = nil
@@ -19,7 +22,8 @@ struct TouchStateMachine {
     }
 
     mutating func stop(_ target: State) -> Action? {
-        let action: Action? = state == .commandPressed ? .release : nil
+        let action: Action? = activeKey != nil ? .release : nil
+        activeKey = nil
         state = target
         candidateSince = nil
         lastFrame = nil
@@ -29,36 +33,49 @@ struct TouchStateMachine {
     }
 
     mutating func emergencyRelease() -> Action? {
-        let action: Action? = state == .commandPressed ? .release : nil
-        if state == .commandPressed { state = .idle }
+        let action: Action? = activeKey != nil ? .release : nil
+        activeKey = nil
+        if state == .modifierPressed || state == .keyTriggered { state = .idle }
         candidateSince = nil
         needsRelease = true
         return action
     }
 
     mutating func ingest(count: Int, at time: Double) -> Action? {
-        guard state == .idle || state == .commandPressed else { return nil }
+        guard state == .idle || state == .modifierPressed || state == .keyTriggered else { return nil }
         guard (0...16).contains(count), time.isFinite,
               lastFrame.map({ time >= $0 }) ?? true else { return stop(.unavailable) }
         lastFrame = time
+        let changed = self.count != count
         self.count = count
-        if count < 3 {
-            needsRelease = false
+        // 启动和紧急释放后必须全部抬起，避免经过其它档位时意外重新触发。
+        if count == 0 { needsRelease = false }
+        let target = bindings[count]
+        if changed || target != activeKey && activeKey != nil {
             candidateSince = nil
-            if state == .commandPressed { state = .idle; return .release }
+            if activeKey != nil {
+                activeKey = nil
+                state = .idle
+                if target != nil, !needsRelease { candidateSince = time }
+                return .release
+            }
+        }
+        guard let target else {
+            candidateSince = nil
             return nil
         }
-        guard !needsRelease, state != .commandPressed else { return nil }
+        guard !needsRelease, activeKey == nil else { return nil }
         if candidateSince == nil { candidateSince = time }
         if time - candidateSince! >= debounce {
-            state = .commandPressed
-            return .press
+            state = target.isModifier ? .modifierPressed : .keyTriggered
+            activeKey = target
+            return target.isModifier ? .press(target) : .tap(target)
         }
         return nil
     }
 
     mutating func checkFreshness(at time: Double) -> Action? {
-        guard state == .commandPressed, let lastFrame, time - lastFrame > 0.5 else { return nil }
+        guard state == .modifierPressed, let lastFrame, time - lastFrame > 0.5 else { return nil }
         return stop(.unavailable)
     }
 }

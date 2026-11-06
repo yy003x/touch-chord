@@ -2,52 +2,80 @@ import ApplicationServices
 import Foundation
 import TriKeyHardware
 
-struct CommandOwnership {
-    private(set) var virtualPressed = false
-    mutating func press() -> Bool {
-        guard !virtualPressed else { return false }
-        virtualPressed = true
+struct ModifierOwnership {
+    private(set) var heldKey: TouchKey?
+    mutating func press(_ key: TouchKey) -> Bool {
+        guard key.isModifier, heldKey == nil else { return false }
+        heldKey = key
         return true
     }
-    mutating func release(physicalPressed: Bool) -> Bool {
-        guard virtualPressed else { return false }
-        virtualPressed = false
-        return !physicalPressed
+    mutating func release(physical: Set<TouchKey>) -> TouchKey? {
+        guard let key = heldKey else { return nil }
+        heldKey = nil
+        return physical.contains(key) ? nil : key
     }
-    func effective(physicalPressed: Bool) -> Bool { virtualPressed || physicalPressed }
+    func effective(physical: Set<TouchKey>) -> Set<TouchKey> {
+        physical.union(heldKey.map { [$0] } ?? [])
+    }
+    func eventFlags(base: CGEventFlags, physical: Set<TouchKey>, pending: Set<TouchKey>) -> CGEventFlags {
+        // 清除本应用尚未确认释放的来源，再合并当前来源，避免快速切换或恢复时重新带回旧键。
+        var flags = base
+        for key in pending { flags.remove(key.flag) }
+        for key in effective(physical: physical) { flags.insert(key.flag) }
+        return flags
+    }
+    func postedEventFlags(for key: TouchKey, base: CGEventFlags, physical: Set<TouchKey>, pending: Set<TouchKey>) -> CGEventFlags {
+        // 单次按键保留投递时的快照；只有修饰键状态同步事件跟随当前来源。
+        key.isModifier ? eventFlags(base: base, physical: physical, pending: pending) : base
+    }
 }
 
 @MainActor
 final class ModifierKeyController {
     static weak var current: ModifierKeyController?
     private static let marker: Int64 = 0x5452494b4559
-    private static let recoveryKey = "TriKeyPendingCommandRelease"
+    private static let recoveryKey = "pendingModifierReleases"
     private let keyboard = PhysicalKeyboardMonitor()
     private var eventSource: CGEventSource?
-    private var down: CGEvent?
-    private var up: CGEvent?
+    private var downs: [TouchKey: CGEvent] = [:]
+    private var ups: [TouchKey: CGEvent] = [:]
+    private var pending = Set<TouchKey>()
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var ownership = CommandOwnership()
+    private var ownership = ModifierOwnership()
+    private var recoveryCompletion: (@MainActor @Sendable () -> Void)?
+    private var recoveryTimeout: Timer?
     private(set) var pressObserved = false
     var onFailure: ((String) -> Void)?
     var onEmergency: (() -> Void)?
-    var physicalCommandPressed: Bool { keyboard.isCommandPressed }
+    var heldKey: TouchKey? { ownership.heldKey }
+
+    static var hasPendingRecovery: Bool { !pendingReleases().isEmpty }
+
+    private static func pendingReleases() -> Set<TouchKey> {
+        var keys = Set((UserDefaults.standard.stringArray(forKey: recoveryKey) ?? []).compactMap(TouchKey.init(rawValue:)))
+        if UserDefaults.standard.bool(forKey: "TriKeyPendingCommandRelease") { keys.insert(.command) }
+        return keys
+    }
 
     func start() throws {
         guard AXIsProcessTrusted(), CGPreflightPostEventAccess(), CGPreflightListenEventAccess() else {
             throw HardwareError.unavailable("需要辅助功能与输入监控权限，请授权 TouchChord 后重新启用")
         }
-        guard let eventSource = CGEventSource(stateID: .combinedSessionState),
-              let down = CGEvent(keyboardEventSource: eventSource, virtualKey: 55, keyDown: true),
-              let up = CGEvent(keyboardEventSource: eventSource, virtualKey: 55, keyDown: false) else {
-            throw HardwareError.unavailable("无法创建 Command 事件")
+        guard let eventSource = CGEventSource(stateID: .combinedSessionState) else {
+            throw HardwareError.unavailable("无法创建修饰键事件源")
         }
         self.eventSource = eventSource
-        self.down = down
-        self.up = up
-        down.setIntegerValueField(.eventSourceUserData, value: Self.marker)
-        up.setIntegerValueField(.eventSourceUserData, value: Self.marker)
+        for key in TouchKey.allCases {
+            guard let down = CGEvent(keyboardEventSource: eventSource, virtualKey: key.keyCode, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: eventSource, virtualKey: key.keyCode, keyDown: false) else {
+                throw HardwareError.unavailable("无法创建 \(key.title) 事件")
+            }
+            down.setIntegerValueField(.eventSourceUserData, value: Self.marker)
+            up.setIntegerValueField(.eventSourceUserData, value: Self.marker)
+            downs[key] = down
+            ups[key] = up
+        }
         keyboard.onFailure = { [weak self] message in self?.onFailure?(message) }
         try keyboard.start()
         let types: [CGEventType] = [.flagsChanged, .keyDown, .keyUp, .leftMouseDown, .leftMouseUp,
@@ -65,57 +93,101 @@ final class ModifierKeyController {
         Self.current = self
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        // 仅清理本应用记录的未完成释放，不无条件清除其它程序的 Command。
-        if UserDefaults.standard.bool(forKey: Self.recoveryKey) {
-            if !keyboard.isCommandPressed { postRelease() }
-            else { recordPending(false) }
-        }
     }
 
-    func pressCommand() {
-        guard tap != nil, let down, ownership.press() else { return }
+    func recoverPendingReleases(completion: @escaping @MainActor @Sendable () -> Void) {
+        // 只恢复本应用记录的来源；保留旧版 Command 标记，便于回退到 v1.0.0。
+        pending = Self.pendingReleases()
+        recoveryCompletion = completion
+        for key in pending {
+            if !keyboard.pressedKeys.contains(key) { postRelease(key) }
+            else { recordPending(key, false) }
+        }
+        finishRecoveryIfNeeded()
+        guard recoveryCompletion != nil else { return }
+        let timer = Timer(timeInterval: 0.5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.onFailure?("未确认遗留按键释放，已保留恢复记录；请重新连接")
+            }
+        }
+        recoveryTimeout = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func finishRecoveryIfNeeded() {
+        guard pending.isEmpty, let completion = recoveryCompletion else { return }
+        recoveryCompletion = nil
+        recoveryTimeout?.invalidate()
+        recoveryTimeout = nil
+        // 等当前释放事件通过过滤器，再允许关闭过滤器或开始触摸监听。
+        DispatchQueue.main.async(execute: completion)
+    }
+
+    func press(_ key: TouchKey) {
+        guard tapIsEnabled, let down = downs[key], ownership.press(key) else { return }
         pressObserved = false
-        recordPending(true)
-        down.flags = CGEventSource.flagsState(.hidSystemState).union(.maskCommand)
+        recordPending(key, true)
+        down.flags = effectiveFlags().union(key.flag)
         down.post(tap: .cghidEventTap)
     }
 
-    func releaseCommand() {
-        guard ownership.virtualPressed else { return }
-        let shouldPost = ownership.release(physicalPressed: keyboard.isCommandPressed)
-        if shouldPost { postRelease() }
-        else { recordPending(false) }
+    func tap(_ key: TouchKey) throws -> Bool {
+        guard !key.isModifier, tapIsEnabled, heldKey == nil, let down = downs[key], let up = ups[key] else {
+            throw HardwareError.unavailable("无法发送 \(key.title)")
+        }
+        try keyboard.refresh()
+        // 同名物理键按住时跳过本次动作，避免虚拟 Up 打断物理按住状态。
+        guard !keyboard.pressedKeys.contains(key) else { return false }
+        recordPending(key, true)
+        let flags = effectiveFlags()
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        return true
+    }
+
+    func release() {
+        guard let key = heldKey else { return }
+        var failure: String?
+        do { try keyboard.refresh() }
+        catch { failure = "释放时无法确认物理按键状态，已按最近记录清理并暂停：\(error)" }
+        if let released = ownership.release(physical: keyboard.pressedKeys) { postRelease(released) }
+        else { recordPending(key, false) }
         pressObserved = false
+        if let failure { onFailure?(failure) }
     }
 
     func forceRelease() {
-        // 主动读取一次，降低遗漏释放回调的影响；读取失败时仍执行已有来源状态下的尽力清理。
-        if isCommandPressed() {
-            do { try keyboard.refresh() }
-            catch { NSLog("TriKey: physical state refresh failed during release: %@", String(describing: error)) }
-        }
-        releaseCommand()
+        release()
     }
 
-    func isCommandPressed() -> Bool { ownership.virtualPressed }
     var tapIsEnabled: Bool { tap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false }
 
-    private func postRelease() {
-        guard let up else { return }
-        var flags = CGEventSource.flagsState(.hidSystemState)
-        flags.remove(.maskCommand)
+    private func effectiveFlags() -> CGEventFlags {
+        ownership.eventFlags(base: CGEventSource.flagsState(.hidSystemState), physical: keyboard.pressedKeys, pending: pending)
+    }
+
+    private func postRelease(_ key: TouchKey) {
+        guard let up = ups[key] else { return }
+        var flags = effectiveFlags()
+        flags.remove(key.flag)
         up.flags = flags
         up.post(tap: .cghidEventTap)
     }
 
-    private func recordPending(_ value: Bool) {
-        guard UserDefaults.standard.bool(forKey: Self.recoveryKey) != value else { return }
-        UserDefaults.standard.set(value, forKey: Self.recoveryKey)
+    private func recordPending(_ key: TouchKey, _ value: Bool) {
+        if value { pending.insert(key) } else { pending.remove(key) }
+        UserDefaults.standard.set(pending.map(\.rawValue).sorted(), forKey: Self.recoveryKey)
+        UserDefaults.standard.set(pending.contains(.command), forKey: "TriKeyPendingCommandRelease")
         // 每次真实状态转换同步一次小型恢复标记，不在触摸帧上执行磁盘写入。
         _ = UserDefaults.standard.synchronize()
     }
 
     func stop() {
+        recoveryCompletion = nil
+        recoveryTimeout?.invalidate()
+        recoveryTimeout = nil
         forceRelease()
         if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
@@ -124,27 +196,40 @@ final class ModifierKeyController {
         runLoopSource = nil
         keyboard.stop()
         eventSource = nil
-        down = nil
-        up = nil
+        downs.removeAll()
+        ups.removeAll()
     }
 
     func filter(type: CGEventType, key: Int64, userData: Int64, pid: Int64, rawFlags: UInt64) -> (Bool, UInt64) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            onFailure?("输入过滤器已被系统关闭，Command 已请求释放；请重新启用")
+            onFailure?("输入过滤器已被系统关闭，修饰键已请求释放；请重新启用")
             return (true, rawFlags)
         }
         var flags = CGEventFlags(rawValue: rawFlags)
         if userData == Self.marker && pid == Int64(getpid()) {
-            if flags.contains(.maskCommand), isCommandPressed() { pressObserved = true }
-            if !flags.contains(.maskCommand), !isCommandPressed() { recordPending(false) }
-            return (true, rawFlags)
+            guard let eventKey = TouchKey.allCases.first(where: { Int64($0.keyCode) == key }) else {
+                return (true, rawFlags)
+            }
+            let effective = ownership.postedEventFlags(for: eventKey, base: flags,
+                                                      physical: keyboard.pressedKeys, pending: pending)
+            if eventKey.isModifier {
+                if flags.contains(eventKey.flag), heldKey == eventKey { pressObserved = true }
+                if !flags.contains(eventKey.flag), heldKey != eventKey { recordPending(eventKey, false) }
+            } else if type == .keyUp {
+                recordPending(eventKey, false)
+            }
+            finishRecoveryIfNeeded()
+            if !eventKey.isModifier, type == .keyUp, keyboard.pressedKeys.contains(eventKey) {
+                return (false, effective.rawValue)
+            }
+            return (true, effective.rawValue)
         }
-        // Escape 仅在模拟 Command 活跃时用作紧急释放；其它时候保持原有行为。
-        if type == .keyDown, key == 53, isCommandPressed() {
+        // Escape 仅在模拟修饰键活跃时用作紧急释放。
+        if type == .keyDown, key == 53, heldKey != nil {
             onEmergency?()
             return (false, rawFlags)
         }
-        if isCommandPressed() { flags.insert(.maskCommand) }
+        if let heldKey { flags.insert(heldKey.flag) }
         return (true, flags.rawValue)
     }
 }

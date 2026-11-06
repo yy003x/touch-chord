@@ -72,17 +72,30 @@ final class HoldExperiment {
     func startSurface() {
         Self.current = self
         showWindow()
-        window?.title = "TriKey — 应用验收文本区"
+        window?.title = "TouchChord — 触摸按键验收文本区"
         window?.styleMask.insert(.closable)
-        status.stringValue = "由菜单栏 TriKey 控制 Command；本窗口不监听触摸或发送按键"
+        status.stringValue = "由 TouchChord 控制修饰键；本窗口只记录输入标志，不发送按键"
+        textView?.string = "TouchChord testing: alpha beta gamma. 三指触摸时按 A 全选。"
         if let instruction = window?.contentView?.subviews.first as? NSTextField {
-            instruction.stringValue = "在下方验证三指 + A / C / V 和点击。\n全部抬起后关闭窗口即可。正式应用没有实验的 30 秒保持上限。"
+            instruction.stringValue = "按当前设置验证触摸按键；本窗口只记录按键类型、标志和选区，不记录输入文字。\n每项之间全部抬起。全部抬起后按物理 Escape 关闭本窗口。"
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) { event in
-            let names: [UInt16: String] = [0: "A", 8: "C", 9: "V"]
-            if event.type != .keyDown || names[event.keyCode] != nil {
-                ProbeLog.shared.record("app_input", ["input": event.type == .keyDown ? names[event.keyCode]! : "click",
-                    "command": event.modifierFlags.contains(.command)])
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown, .keyUp, .leftMouseDown, .rightMouseDown]) { event in
+            let names: [UInt16: String] = [0: "A", 8: "C", 9: "V", 123: "left", 124: "right", 125: "down", 126: "up", 36: "return", 53: "escape"]
+            let isKey = event.type == .keyDown || event.type == .keyUp
+            if !isKey || names[event.keyCode] != nil {
+                let command = event.modifierFlags.contains(.command)
+                let shift = event.modifierFlags.contains(.shift)
+                let option = event.modifierFlags.contains(.option)
+                let control = event.modifierFlags.contains(.control)
+                let input = isKey ? names[event.keyCode]! : (event.type == .flagsChanged ? "flags" : "click")
+                let phase = event.type == .keyDown ? "down" : (event.type == .keyUp ? "up" : "change")
+                ProbeLog.shared.record("app_input", ["input": input, "phase": phase, "command": command,
+                    "shift": shift, "option": option, "control": control])
+                Self.current?.status.stringValue = "\(input) \(phase)：⌘ \(command)  ⇧ \(shift)  ⌥ \(option)  ⌃ \(control)"
+            }
+            if event.type == .keyDown, event.keyCode == 53,
+               event.cgEvent?.getIntegerValueField(.eventSourceUserData) != 0x5452494b4559 {
+                TriKeyProbe.endRun(); return nil
             }
             return event
         }
@@ -215,6 +228,7 @@ final class HoldExperiment {
             MainActor.assumeIsolated {
                 guard let text = Self.current?.textView else { return }
                 ProbeLog.shared.record("text_selection", ["length": text.selectedRange().length,
+                    "location": text.selectedRange().location,
                     "textLength": (text.string as NSString).length])
             }
         }
