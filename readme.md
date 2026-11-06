@@ -4,12 +4,17 @@
 
 **让触摸成为快捷操作。Turn touch into shortcuts.**
 
-[下载 v1.0.0](https://github.com/yy003x/touch-chord/releases/tag/v1.0.0) · [恢复说明](docs/recovery.md)
+[下载 v1.0.1](https://github.com/yy003x/touch-chord/releases/tag/v1.0.1) · [发布说明](docs/releases/v1-0-1.md) · [恢复 v1.0.0](docs/recovery.md)
 
-v1.0.0 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `local.trikey.app`、
+当前发布版本为 v1.0.1（build 14）。应用由 TriKey 更名为 TouchChord；内部 `local.trikey.app`、
 固定签名、偏好键和 Swift 模块名称保留，避免仅因改名丢失权限或恢复标记。
 
-原生 macOS 触控板修饰键工具：三指及以上接触时保持通用 Command（⌘），少于三指时释放。
+原生 macOS 触控板修饰键工具。支持精确的 2、3、4 指触摸，
+每档可独立下拉选择 Command ⌘、Option ⌥、Control ⌃、Shift ⇧、Return ↩、Esc ⎋ 或“不触发”。
+默认 2 指 Control、3 指 Command、4 指 Option；0、1、5 指及以上释放模拟修饰键。
+修饰键持续保持；回车和 Esc 稳定触摸后触发一次，保持触摸不连发。不支持 Fn。
+须先关闭系统“轻点来点按”；未知或开启状态会暂停功能。详见 [配置与验证边界](docs/configurable-modifiers.md)。
+v1.0.0 仍作为已冻结的三指及以上 Command 恢复基线，不包含新增档位。
 
 包含 Swift 6 原生菜单栏应用、独立技术探针、单元测试及 DMG 打包脚本。
 核心可行性及真实设备证据见 [Phase 1 报告](docs/phase-1.md)。完整稳定性验收仍未完成，
@@ -18,7 +23,7 @@ v1.0.0 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `l
 
 ## 安装和使用
 
-下载并打开 `touch-chord-1.0.0-arm64.dmg`，把 TouchChord 拖入 Applications，再从
+下载并打开 `touch-chord-1.0.1-arm64.dmg`，把 TouchChord 拖入 Applications，再从
 `/Applications/TouchChord.app` 启动。更新前先退出旧版，不从挂载的 DMG 或 build 目录长期运行。
 
 本包使用固定的本地自签名证书，没有上架 App Store，也没有 Apple 公证。
@@ -29,12 +34,16 @@ v1.0.0 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `l
 分别为 `/Applications/TouchChord.app` 开启辅助功能和输入监控。系统可能要求退出并重新打开应用；
 这会使 TouchChord 设置窗口一起消失，重新打开应用会恢复未完成的授权设置。
 返回 TouchChord 时会重新检查权限，也可手动点击“重新检查并连接”。
-先抬起全部手指，再放三指，按 A / C / V 验证。少于三指立即释放，Escape 可紧急释放。
+先在“系统设置 → 触控板 → 光标与点按”关闭“轻点来点按”，再重新连接。
+先抬起全部手指，再放三指，按 A / C / V 验证。换档先释放旧键，再等待激活防抖；
+改动下拉选择会立即释放并重新连接。Escape 可紧急释放，之后必须全部抬起再触摸。
 
-菜单提供启用、设置、登录启动、紧急释放、系统菜单栏设置和退出；设置中可调节防抖。
+菜单提供启用、设置、登录启动、紧急释放、系统菜单栏设置和退出；设置中可选每档修饰键、调节防抖。
 设置窗口打开期间，TouchChord 会显示在 Dock 并参与普通应用切换；关闭设置后恢复纯菜单栏运行。
 该策略改善授权跳转后的返回行为，但冷启动首次返回仍可能被其它应用遮挡，见 [验证记录](docs/verification.md)。
-图标固定尺寸，平时显示 ⌘，模拟按住时反白，不显示 ON，不因状态改变挤动旁边的图标。
+菜单栏使用固定 18×18 的圆角触控板底图，空闲时显示三个触点；触摸生效时底图填实，
+中间反白显示对应的 ⌘、⌥、⌃、⇧、↩ 或 ⎋。Return、Esc 触发后保留标识到换档或抬起，
+表示本次触摸已经触发，并非持续按键。图标适配系统明暗外观，不显示 ON，也不挤动旁边的图标。
 显示／隐藏统一由当前 macOS 的“系统设置 → 菜单栏 → 允许在菜单栏显示 → TouchChord”管理，
 应用内不再维护另一套显示开关。隐藏后仍在后台运行；重新打开应用可进入设置，再通过
 “系统菜单栏设置…”恢复图标。此系统开关流程已在当前 macOS 27.0.1 验证，旧系统未实测。
@@ -82,6 +91,8 @@ bash scripts/package-dmg.sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 # 真实桌面窗口回归；需安装应用及测试宿主的辅助功能权限，不修改授权开关。
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift scripts/verify-settings.swift
+# 打开已安装应用的设置后，逐项验证下拉选择和保存；成功或失败均恢复并核对原配置。
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift scripts/verify-modifier-settings.swift
 mkdir -p artifacts
 ```
 
@@ -119,7 +130,7 @@ mkdir -p artifacts
 在“系统设置 → 隐私与安全性”查看：
 
 - **辅助功能**：全局按键发送和修改输入事件。
-- **输入监控**：读取物理 Command 的 HID 输入和只读事件监听。
+- **输入监控**：读取四种物理修饰键的 HID 输入和只读事件监听。
 
 命令行探针的授权身份可能归属于启动它的宿主。`.app` 的授权需单独验证，不能沿用
 宿主授权测试结果。本人在系统设置中操作，程序不会修改 TCC 数据库、关闭 SIP 或绕过系统授权。
@@ -131,8 +142,9 @@ mkdir -p artifacts
 这条技术路径不符合 App Store 仅使用公开 API 的要求。
 
 实验进程的清理、超时和事件过滤器都不能保证在 `SIGKILL`、进程崩溃、系统冻结或权限撤销后
-仍执行。当前不得宣称“绝不会卡键”。如实验异常，先抬起触控板手指，再按下并松开真实 Command；
+仍执行。当前不得宣称“绝不会卡键”。如实验异常，先抬起触控板手指，再按下并松开受影响的真实修饰键；
 仍异常时检查实验进程是否退出。不要把探针配置为登录启动或用于无人监督的长期运行。
 
-真实触控板上三指静止时再移动第四指，可能触发系统多指手势，不能保证产生普通鼠标移动或点击。
-探针不修改用户的系统触控板手势设置。
+精确档位模式中，3 指加到 4 指会切换映射，4 指加到 5 指会释放；不能继续沿用旧版“三指以上都保持 Command”的操作。
+两指滚动、缩放和多指系统手势仍可能触发，并受到当前修饰键影响。关闭轻点来点按不会关闭这些手势。
+应用不修改用户的系统触控板手势设置，也不保证多指触摸期间可以普通移动或点击。

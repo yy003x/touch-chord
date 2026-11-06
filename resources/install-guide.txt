@@ -1,4 +1,4 @@
-TouchChord — 三指触摸保持 Command
+TouchChord v1.0.1（build 14）— 2／3／4 指触摸按键
 
 1. 将 TouchChord.app 拖到 Applications 文件夹。更新前先从菜单栏退出旧版。
 2. 从“应用程序”打开 TouchChord，不要直接从 DMG 运行。
@@ -6,10 +6,16 @@ TouchChord — 三指触摸保持 Command
    为 TouchChord 点击“仍要打开”，由本人确认。无需上架 App Store。
 4. 在“隐私与安全性 → 辅助功能”和“输入监控”中添加并开启
    /Applications/TouchChord.app。权限修改可能要求退出并重新打开应用。
-5. 重新打开 TouchChord，点击“重新检查并连接”。先抬起全部手指，再放三指测试。
+5. 在“系统设置 → 触控板 → 光标与点按”关闭“轻点来点按”。
+6. 重新打开 TouchChord，点击“重新检查并连接”。先抬起全部手指，再放三指测试。
 
-三指或更多时保持 ⌘；少于三指立即释放。Escape 可紧急释放。
-菜单栏始终显示固定尺寸的 ⌘，模拟按住时反白，不显示 ON。
+精确匹配 2、3、4 指，默认依次为 Control、Command、Option。
+每档下拉框可选 Command、Option、Control、Shift、Return（回车）、Esc、不触发；设置自动保存。不支持 Fn。
+修饰键持续按住；回车和 Esc 稳定触摸后仅触发一次，保持不连发，同名物理键按住时跳过。
+0、1、5 指及以上立即释放；换档先释放再防抖。Escape 可紧急释放，之后须全部抬起。
+两指滚动、缩放和系统多指手势仍可能冲突，关闭轻点来点按不会屏蔽这些手势。
+菜单栏空闲时显示触控板底图，触摸生效时在底图上反白显示对应按键符号；尺寸固定，不显示 ON。
+Return、Esc 标识表示本次触摸已触发一次，保留到换档或抬起，不表示持续按住。
 显示／隐藏由“系统设置 → 菜单栏 → 允许在菜单栏显示 → TouchChord”统一管理。
 应用里的“系统菜单栏设置…”可直达该页面。隐藏后仍在后台运行，
 重新打开 /Applications/TouchChord.app 可进入设置；恢复图标请开启系统的 TouchChord 开关。
@@ -21,10 +27,10 @@ TouchChord — 三指触摸保持 Command
 
 仅当前 Apple Silicon / macOS 开发设备做过核心触摸及物理 Command 共存测试。
 使用 MultitouchSupport 私有 API，系统升级后需要重新验证。
-如输入状态异常：先抬起手指，按下并松开物理 Command，再退出 TouchChord。
+如输入状态异常：先抬起手指，按下并松开受影响的物理修饰键，再退出 TouchChord。
 进程崩溃或被强制结束时无法保证执行清理。
 
-v1.0.0 发布和恢复：
+v1.0.0 原始 Command 版本发布和恢复（不包含新增档位）：
 https://github.com/yy003x/touch-chord/releases/tag/v1.0.0
 使用发布 ZIP 和 restore-release.sh 可恢复原签名应用，无需重新构建或签名。
 此前有菜单栏图标偶发缺失，正常重启可恢复；根因仍待验证。
