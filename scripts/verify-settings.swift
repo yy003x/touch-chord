@@ -5,7 +5,16 @@ import ApplicationServices
 let bundleID = "local.trikey.app"
 let appURL = URL(fileURLWithPath: "/Applications/TouchChord.app")
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
-    guard condition() else { fputs("FAIL: \(message)\n", stderr); exit(1) }
+    guard condition() else {
+        fputs("FAIL: \(message)\n", stderr)
+        let target = running(bundleID)
+        let top = visibleWindows().first
+        fputs("STATE frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown") " +
+              "targetPID=\(target?.processIdentifier ?? -1) policy=\(target?.activationPolicy.rawValue ?? -1) " +
+              "topOwner=\(top?[kCGWindowOwnerName as String] ?? "none") " +
+              "targetWindows=\(target.map { windowIDs($0.processIdentifier) } ?? [])\n", stderr)
+        exit(1)
+    }
 }
 func value(_ element: AXUIElement, _ key: String) -> CFTypeRef? {
     var result: CFTypeRef?

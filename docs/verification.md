@@ -1,5 +1,36 @@
 # TouchChord 本机验证
 
+## v1.0.0 正式发布与 GitHub 重装
+
+2026-11-06；版本 1.0.0 / build 7；发布源码提交 `04a0cd80656133ada0c5cbb84a83e4041497ede5`。
+[正式 Release](https://github.com/yy003x/touch-chord/releases/tag/v1.0.0) 是公开版本，非草稿、非预发布。
+
+- 11 项 XCTest 通过；固定签名、DMG 挂载、包内应用与构建应用比对通过。
+- 通过公开 Release 下载链接，用 `curl` 重新下载 DMG、ZIP、恢复脚本及校验清单。
+  下载内容与上传前的 SHA-256 一致；GitHub 返回的附件摘要也一致。
+- 实际执行下载的 `restore-release.sh`，备份旧应用后重装 `/Applications/TouchChord.app`。
+  未从工作区复制应用，未重新构建或签名，未清除权限。
+- 安装版本回读为 1.0.0 / build 7；两项权限均已授权，状态为等待三指触摸，内置触控板已连接。
+  登录启动仍启用并指向原安装路径。
+- 下载的 DMG 中的应用与重装后的应用递归比对一致。
+
+| 产物 | SHA-256 |
+| --- | --- |
+| DMG | `92ca4689f19dd92600281e40b0dfa731a1184cba305f22dc434f0d76d48b7175` |
+| ZIP | `f8147acf6a780bced8ae05b2b9c808aab8fa4ad74592b57dce83f89b1a7bc92e` |
+| 恢复脚本 | `27f0d1c18bc1a8d07bb4e0b7825d8842bbc7ef2c6f2d3b534b21709df1dc67bc` |
+| 已安装可执行文件 | `50d145b4e2d57522baaf4b0893826f2a9d440a411d6c6e580cb0d627501ae31f` |
+
+重装链路通过，但窗口稳定性未完全通过：首次桌面回归失败；重新激活窗口后两个入口各三轮通过；
+随后退出并冷启动，再测首次授权跳转仍失败。失败现场 `policy=regular`，TouchChord 窗口仍存在，
+前台却切换至飞书。不能把这个失败归因于并行挂载或用户操作，也不能再声称窗口问题已根治。
+具体触发机制仍待进一步定位；已补充失败时的前台、策略和窗口 ID 输出，不改变测试通过条件。
+发布标签及二进制不变更；后续修复应使用新版本。
+
+本机下载副本：`~/Library/Application Support/TouchChord/Releases/v1.0.0/`。
+原应用备份：`~/Library/Application Support/TouchChord/Backups/before-restore-20261106-200604-38965.zip`。
+本次为本机经 `curl` 下载后的重装验证，不等于其它机器首次浏览器下载、Gatekeeper 或新授权流程已验收。
+
 ## 开发阶段验证（未发布）
 
 2026-11-06：应用更名为 TouchChord（和弦），开发阶段版本号为 1.0.1 / build 6。

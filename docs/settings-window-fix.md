@@ -2,6 +2,10 @@
 
 2026-11-06；当前 Apple Silicon / macOS 27.0.1；对照版本 1.0.1 build 5 → build 6。
 
+**当前结论更新：**v1.0.0 / build 7 正式发布后重新下载重装，冷启动首次授权跳转仍出现设置被其它应用遮挡。
+失败时策略已经是 regular；重新激活窗口后两条路径各三轮通过。因此下文解释并改善了一个复现路径，
+尚未覆盖首次激活的完整行为，不能视为根治。详见 [正式版复验](verification.md)。
+
 ## 已确认原因
 
 `SettingsPresenter.show` 创建普通 `NSWindow`，但应用始终处于 `.accessory` 激活策略。
