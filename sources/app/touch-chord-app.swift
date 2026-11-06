@@ -60,6 +60,10 @@ final class TriKeyDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         AppState.shared.shutdown()
         signals.forEach { $0.cancel() }

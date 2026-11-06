@@ -55,7 +55,7 @@ TriKey 探针启用了 Swift 6。线程安全不能直接继承其实现假设�
 
 ## 触摸实测
 
-证据：`Artifacts/touch-01.jsonl`、`Artifacts/touch-02.jsonl`；用户完成了指定手指数操作并回复“做完了”。
+证据：`artifacts/touch-01.jsonl`、`artifacts/touch-02.jsonl`；用户完成了指定手指数操作并回复“做完了”。
 第二段监听覆盖第一段时限之后的操作；两段有约 4 秒重叠，不能累加为独立样本量。
 
 - 第一段：4,551 帧，异常帧 0；实际接触数 0、1、2、3、4 均出现。
@@ -74,7 +74,7 @@ TriKey 探针启用了 Swift 6。线程安全不能直接继承其实现假设�
 
 ### 物理来源
 
-证据：`Artifacts/keyboard-01.jsonl`，用户完成物理按键操作并回复“按键做完了”。
+证据：`artifacts/keyboard-01.jsonl`，用户完成物理按键操作并回复“按键做完了”。
 IOHID 的键盘 usage page 7、usage E3/E7 分别给出 Command 按下和释放，双键交错也可观察。
 本机右 Command 按下时，`CGEventSource.keyState(.hidSystemState, key: 55)` 仍可为 true，
 key 54 为 false；因此不能用这两个 CG 状态值准确区分物理来源。
@@ -89,7 +89,7 @@ IOHID 回调早于相应 CG 事件数毫秒；在 HID 回调内部读取 CG 状�
 | private source + session 入口 | 在监听中见到按下，但 session Command flag/keyState 已为 false | false | 不足以持续保持；本轮未追踪所有系统事件，不能断言具体清除原因 |
 | combinedSession source + HID 入口 | HID/session Command flag 和 session keyState 均为 true | 均为 false | 短脉冲发送和释放回读通过 |
 
-证据：`Artifacts/pulse-01.jsonl`、`Artifacts/pulse-hid-01.jsonl`。
+证据：`artifacts/pulse-01.jsonl`、`artifacts/pulse-hid-01.jsonl`。
 两次实验 IOHID 物理 Command 均为 false，没有将模拟按键误报为真实按键。
 HID 入口会改变 `hidSystemState`，所以它不能作为纯硬件来源。这是选择 IOHID 独立来源记录的现场依据。
 
@@ -99,15 +99,15 @@ HID 入口会改变 `hidSystemState`，所以它不能作为纯硬件来源。�
 
 ### 交互实验的当前证据
 
-`Artifacts/hold-01.jsonl`：用户明确反馈“还没完成测试”，不计为组合键验收通过。
+`artifacts/hold-01.jsonl`：用户明确反馈“还没完成测试”，不计为组合键验收通过。
 该轮确实触发当时设置的 10 秒自动释放与 Escape 停止。旧探针摘要仅统计 pulse 事件，
 因此其中 `globalKeyInjectionAttempted=false` 不准确；具体 `virtual_command` 和 `command_event`
 记录证明有注入。后续版本已修正摘要统计，不改写历史日志。
 
 实验文本区加入原生 Edit 菜单后，以定向到本进程的真实 CGEvent Command+A 验证：
-`Artifacts/target-01.jsonl` 中选中 31/31 个字符。它验证测试文本区，不能替代触摸驱动实验。
+`artifacts/target-01.jsonl` 中选中 31/31 个字符。它验证测试文本区，不能替代触摸驱动实验。
 
-`Artifacts/hold-02.jsonl` 当前观察：
+`artifacts/hold-02.jsonl` 当前观察：
 
 - 三指保持期间，输入事件包含 Command，原生 NSTextView 实际全选，出现 `text_selection length=31/textLength=31`。
 - 16:46:51 触摸触发，16:46:52 物理 Command 按下，16:46:56 触摸结束；
@@ -116,7 +116,7 @@ HID 入口会改变 `hidSystemState`，所以它不能作为纯硬件来源。�
   flagsChanged 为 false；16:47:05 的按键也为 false。
 - 用户确认本轮三指全选、触摸释放和物理键仍按下的行为“两项都符合”。
 
-`Artifacts/hold-04.jsonl` 补充反向交错：16:51:36 物理 Command 按下，
+`artifacts/hold-04.jsonl` 补充反向交错：16:51:36 物理 Command 按下，
 16:51:40 三指激活，16:51:41 物理键释放；随后的实际输入仍包含 Command，
 16:51:45 抬起三指后释放。用户确认“仍能全选，释放也正常”。
 这覆盖了物理键先按、模拟先按及两种释放顺序，且输入事件和 UI 效果相互印证。

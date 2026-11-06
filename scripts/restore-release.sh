@@ -4,12 +4,12 @@ set -euo pipefail
 RELEASE_DIR="$(cd "${1:?用法：bash restore-release.sh 发布目录 [--verify-only]}" && pwd)"
 MODE="${2:-install}"
 [[ "$MODE" == install || "$MODE" == --verify-only ]] || { echo '未知参数' >&2; exit 1; }
-ARCHIVE=TouchChord-1.0.1-arm64.zip
+ARCHIVE=touch-chord-1.0.0-arm64.zip
 APP_PATH=/Applications/TouchChord.app
 REQUIREMENT='identifier "local.trikey.app" and certificate leaf = H"0702170634f96a407f5a6d538db8330693f0e9dc"'
 [[ "$(uname -m)" == arm64 ]] || { echo '此包仅适用于 Apple Silicon' >&2; exit 1; }
-[[ -f "$RELEASE_DIR/$ARCHIVE" && -f "$RELEASE_DIR/SHA256SUMS" ]] || { echo '缺少 ZIP 或 SHA256SUMS' >&2; exit 1; }
-EXPECTED="$(awk -v file="$ARCHIVE" '$2 == file { print $1 }' "$RELEASE_DIR/SHA256SUMS")"
+[[ -f "$RELEASE_DIR/$ARCHIVE" && -f "$RELEASE_DIR/sha256sums.txt" ]] || { echo '缺少 ZIP 或 sha256sums.txt' >&2; exit 1; }
+EXPECTED="$(awk -v file="$ARCHIVE" '$2 == file { print $1 }' "$RELEASE_DIR/sha256sums.txt")"
 [[ "$EXPECTED" =~ ^[a-f0-9]{64}$ ]] || { echo 'ZIP 校验记录缺失或重复' >&2; exit 1; }
 ACTUAL="$(shasum -a 256 "$RELEASE_DIR/$ARCHIVE")"
 [[ "${ACTUAL%% *}" == "$EXPECTED" ]] || { echo 'ZIP 校验失败，未改动应用' >&2; exit 1; }
@@ -33,10 +33,10 @@ trap cleanup EXIT
 ditto -x -k "$RELEASE_DIR/$ARCHIVE" "$RESTORE_TEMP"
 SOURCE="$RESTORE_TEMP/TouchChord.app"
 codesign --verify --strict -R "=$REQUIREMENT" "$SOURCE"
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SOURCE/Contents/Info.plist")" == 1.0.1 ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SOURCE/Contents/Info.plist")" == 5 ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SOURCE/Contents/Info.plist")" == 1.0.0 ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SOURCE/Contents/Info.plist")" == 7 ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$SOURCE/Contents/Info.plist")" == TriKey ]]
-if [[ "$MODE" == --verify-only ]]; then echo 'v1.0.1 ZIP、版本和固定签名验证通过，未更改应用'; exit 0; fi
+if [[ "$MODE" == --verify-only ]]; then echo 'v1.0.0 ZIP、版本和固定签名验证通过，未更改应用'; exit 0; fi
 [[ ! -L "$APP_PATH" ]] || { echo '拒绝覆盖符号链接' >&2; exit 1; }
 if [[ -e "$APP_PATH" ]]; then
     [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")" == local.trikey.app ]]
@@ -69,4 +69,4 @@ mv "$INSTALL_TEMP/TouchChord.app" "$APP_PATH"
 codesign --verify --strict -R "=$REQUIREMENT" "$APP_PATH"
 if [[ -d "$INSTALL_TEMP/previous.app" ]]; then rm -rf "$INSTALL_TEMP/previous.app"; fi
 open "$APP_PATH"
-echo '已恢复并打开 TouchChord v1.0.1；请确认等待三指触摸和两项权限状态。'
+echo '已恢复并打开 TouchChord v1.0.0；请确认等待三指触摸和两项权限状态。'

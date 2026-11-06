@@ -1,4 +1,4 @@
 .build/
 .DS_Store
-Artifacts/
-Build/
+artifacts/
+build/

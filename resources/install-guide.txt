@@ -24,7 +24,7 @@ TouchChord — 三指触摸保持 Command
 如输入状态异常：先抬起手指，按下并松开物理 Command，再退出 TouchChord。
 进程崩溃或被强制结束时无法保证执行清理。
 
-v1.0.1 发布和恢复：
-https://github.com/yy003x/touch-chord/releases/tag/v1.0.1
+v1.0.0 发布和恢复：
+https://github.com/yy003x/touch-chord/releases/tag/v1.0.0
 使用发布 ZIP 和 restore-release.sh 可恢复原签名应用，无需重新构建或签名。
 此前有菜单栏图标偶发缺失，正常重启可恢复；根因仍待验证。

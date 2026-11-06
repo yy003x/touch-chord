@@ -3,7 +3,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY_FILE="$HOME/Library/Application Support/TriKey/Signing/identity.sha1"
 if [[ ! -f "$IDENTITY_FILE" ]]; then
-    echo '缺少固定签名身份，请先执行 bash Scripts/setup-signing.sh。禁止回退到临时签名。' >&2
+    echo '缺少固定签名身份，请先执行 bash scripts/setup-signing.sh。禁止回退到临时签名。' >&2
     exit 1
 fi
 read -r SIGN_ID < "$IDENTITY_FILE"
@@ -17,7 +17,7 @@ fi
 swift build --package-path "$PROJECT_DIR" -c release --product TriKeyProbe
 swift build --package-path "$PROJECT_DIR" -c release --product TriKey
 BIN_DIR="$(swift build --package-path "$PROJECT_DIR" -c release --show-bin-path)"
-APP_DIR="$PROJECT_DIR/Build/TouchChord.app"
+APP_DIR="$PROJECT_DIR/build/TouchChord.app"
 if [[ -L "$APP_DIR" ]]; then
     printf 'Refusing to replace symlink: %s\n' "$APP_DIR" >&2
     exit 1
@@ -30,18 +30,18 @@ if [[ -e "$APP_DIR" ]]; then
     fi
 fi
 if pgrep -f "^$APP_DIR/Contents/MacOS/TriKey$" >/dev/null; then
-    echo '请先退出 Build/TouchChord.app 再构建，避免覆盖运行中的应用。' >&2
+    echo '请先退出 build/TouchChord.app 再构建，避免覆盖运行中的应用。' >&2
     exit 1
 fi
-mkdir -p "$PROJECT_DIR/Build"
-STAGING_DIR="$(mktemp -d "$PROJECT_DIR/Build/staging.XXXXXX")"
+mkdir -p "$PROJECT_DIR/build"
+STAGING_DIR="$(mktemp -d "$PROJECT_DIR/build/staging.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 STAGED_APP="$STAGING_DIR/TouchChord.app"
 mkdir -p "$STAGED_APP/Contents/MacOS"
 cp "$BIN_DIR/TriKey" "$STAGED_APP/Contents/MacOS/TriKey"
-cp "$PROJECT_DIR/Resources/Info.plist" "$STAGED_APP/Contents/Info.plist"
+cp "$PROJECT_DIR/resources/info.plist" "$STAGED_APP/Contents/Info.plist"
 mkdir -p "$STAGED_APP/Contents/Resources"
-bash "$PROJECT_DIR/Scripts/build-icon.sh" "$STAGED_APP/Contents/Resources/AppIcon.icns"
+bash "$PROJECT_DIR/scripts/build-icon.sh" "$STAGED_APP/Contents/Resources/AppIcon.icns"
 # 明确绑定证书和 bundle ID，代码变化不会改变 designated requirement。
 REQUIREMENT="identifier \"local.trikey.app\" and certificate leaf = H\"$SIGN_ID\""
 codesign --force --sign "$SIGN_ID" --options runtime --timestamp=none \

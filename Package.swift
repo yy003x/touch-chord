@@ -7,11 +7,11 @@ let package = Package(
     products: [.executable(name: "TriKeyProbe", targets: ["TriKeyProbe"]),
                .executable(name: "TriKey", targets: ["TriKey"])],
     targets: [
-        .target(name: "TriKeyHardware", path: "Sources/Trackpad"),
-        .executableTarget(name: "TriKeyProbe", dependencies: ["TriKeyHardware"], path: "Sources/Probe"),
-        .executableTarget(name: "TriKey", dependencies: ["TriKeyHardware"], path: "Sources",
-                          exclude: ["Probe", "Trackpad"]),
-        .testTarget(name: "TriKeyTests", dependencies: ["TriKey", "TriKeyHardware"], path: "Tests")
+        .target(name: "TriKeyHardware", path: "sources/trackpad"),
+        .executableTarget(name: "TriKeyProbe", dependencies: ["TriKeyHardware"], path: "sources/probe"),
+        .executableTarget(name: "TriKey", dependencies: ["TriKeyHardware"], path: "sources",
+                          exclude: ["probe", "trackpad"]),
+        .testTarget(name: "TriKeyTests", dependencies: ["TriKey", "TriKeyHardware"], path: "tests")
     ],
     swiftLanguageModes: [.v6]
 )

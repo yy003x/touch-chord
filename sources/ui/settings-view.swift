@@ -1,9 +1,15 @@
 import SwiftUI
 
 @MainActor
-enum SettingsPresenter {
-    private static var window: NSWindow?
+final class SettingsPresenter: NSObject, NSWindowDelegate {
+    private static let shared = SettingsPresenter()
+    private var window: NSWindow?
+
     static func show(app: AppState) {
+        shared.showWindow(app: app)
+    }
+
+    private func showWindow(app: AppState) {
         if window == nil {
             let controller = NSHostingController(rootView: SettingsView(app: app))
             let window = NSWindow(contentViewController: controller)
@@ -11,11 +17,19 @@ enum SettingsPresenter {
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.hidesOnDeactivate = false
+            window.delegate = self
             window.center()
             self.window = window
         }
+        // 设置窗口参与正常应用切换；否则系统设置关闭时可能回到更早的普通应用，遮住本窗口。
+        NSApp.setActivationPolicy(.regular)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // 用户主动关闭设置后恢复纯菜单栏运行，不占据 Dock。
+        NSApp.setActivationPolicy(.accessory)
     }
 }
 

@@ -1,25 +1,25 @@
-<p align="center"><img src="Resources/AppIcon.png" width="160" alt="TouchChord 图标：三个触点与 Command"></p>
+<p align="center"><img src="resources/app-icon.png" width="160" alt="TouchChord 图标：三个触点与 Command"></p>
 
 # TouchChord · 和弦
 
 **让触摸成为快捷操作。Turn touch into shortcuts.**
 
-[下载 v1.0.1](https://github.com/yy003x/touch-chord/releases/tag/v1.0.1) · [恢复说明](Docs/recovery.md)
+[下载 v1.0.0](https://github.com/yy003x/touch-chord/releases/tag/v1.0.0) · [恢复说明](docs/recovery.md)
 
-v1.0.1 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `local.trikey.app`、
+v1.0.0 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `local.trikey.app`、
 固定签名、偏好键和 Swift 模块名称保留，避免仅因改名丢失权限或恢复标记。
 
 原生 macOS 触控板修饰键工具：三指及以上接触时保持通用 Command（⌘），少于三指时释放。
 
 包含 Swift 6 原生菜单栏应用、独立技术探针、单元测试及 DMG 打包脚本。
-核心可行性及真实设备证据见 [Phase 1 报告](Docs/phase-1.md)。完整稳定性验收仍未完成，
+核心可行性及真实设备证据见 [Phase 1 报告](docs/phase-1.md)。完整稳定性验收仍未完成，
 不能据此宣称支持所有 macOS 版本。没有使用 Touchy 源码或第三方运行时。
-固定签名、实际更新和界面检查结果见 [验证记录](Docs/verification.md)。
+固定签名、实际更新和界面检查结果见 [验证记录](docs/verification.md)。
 
 ## 安装和使用
 
-下载并打开 `TouchChord-1.0.1-arm64.dmg`，把 TouchChord 拖入 Applications，再从
-`/Applications/TouchChord.app` 启动。更新前先退出旧版，不从挂载的 DMG 或 Build 目录长期运行。
+下载并打开 `touch-chord-1.0.0-arm64.dmg`，把 TouchChord 拖入 Applications，再从
+`/Applications/TouchChord.app` 启动。更新前先退出旧版，不从挂载的 DMG 或 build 目录长期运行。
 
 本包使用固定的本地自签名证书，没有上架 App Store，也没有 Apple 公证。
 若首次打开被拦截，先尝试打开，再在“系统设置 → 隐私与安全性”中为 TouchChord 点击“仍要打开”，
@@ -32,6 +32,8 @@ v1.0.1 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `l
 先抬起全部手指，再放三指，按 A / C / V 验证。少于三指立即释放，Escape 可紧急释放。
 
 菜单提供启用、设置、登录启动、紧急释放、系统菜单栏设置和退出；设置中可调节防抖。
+设置窗口打开期间，TouchChord 会显示在 Dock 并参与普通应用切换；关闭设置后恢复纯菜单栏运行。
+这样关闭授权跳转打开的系统设置时，会返回 TouchChord 设置，而不会被之前使用的应用遮住。
 图标固定尺寸，平时显示 ⌘，模拟按住时反白，不显示 ON，不因状态改变挤动旁边的图标。
 显示／隐藏统一由当前 macOS 的“系统设置 → 菜单栏 → 允许在菜单栏显示 → TouchChord”管理，
 应用内不再维护另一套显示开关。隐藏后仍在后台运行；重新打开应用可进入设置，再通过
@@ -40,7 +42,7 @@ v1.0.1 是当前使用基线。应用由 TriKey 更名为 TouchChord；内部 `l
 
 ## 固定签名
 
-首次在开发机执行 `bash Scripts/setup-signing.sh`，按系统提示本人确认证书信任。
+首次在开发机执行 `bash scripts/setup-signing.sh`，按系统提示本人确认证书信任。
 它生成有效期十年的 RSA 代码签名证书，私钥保存在当前用户的登录钥匙串，
 仅为代码签名设置信任，不修改系统钥匙串或 SSL 信任。代码签名工具可能要求本人批准使用私钥。
 
@@ -65,20 +67,27 @@ tccutil reset ListenEvent local.trikey.app
 
 ## 构建
 
+项目目录为 `touch-chord`。维护的目录使用小写，源码、脚本、资源和文档文件使用小写连字符命名，
+例如 `sources/core/app-state.swift`、`resources/app-icon.png`。
+`Package.swift` 保留 SwiftPM 要求的固定名称；生成应用内部的 `Contents/Info.plist` 等遵循 macOS 格式。
+编译缓存和历史归档不作为源码命名规范的检查范围。
+
 当前设备：Apple Silicon，macOS 27.0.1，Xcode 27.0。声明的编译最低版本为 macOS 13，
 并不表示该版本或 Intel Mac 已获实测支持。
 
 ```sh
-bash Scripts/setup-signing.sh # 仅首次准备，已有身份时复用
-bash Scripts/build.sh
-bash Scripts/package-dmg.sh
+bash scripts/setup-signing.sh # 仅首次准备，已有身份时复用
+bash scripts/build.sh
+bash scripts/package-dmg.sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
-mkdir -p Artifacts
+# 真实桌面窗口回归；需安装应用及测试宿主的辅助功能权限，不修改授权开关。
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift scripts/verify-settings.swift
+mkdir -p artifacts
 ```
 
 脚本仅在本次构建进程中选择已安装的 Xcode，不修改 `xcode-select` 全局配置，不安装依赖。
-构建不覆盖运行中的 Build 应用；DMG 打包不覆盖已有同名产物。版本发布时更新
-`Resources/Info.plist` 的版本号。构建后更新安装位置，再启动应用；构建脚本不会自动替换已安装版本。
+构建不覆盖运行中的 build 应用；DMG 打包不覆盖已有同名产物。版本发布时更新
+`resources/info.plist` 的版本号。构建后更新安装位置，再启动应用；构建脚本不会自动替换已安装版本。
 
 ## 探针
 
@@ -86,16 +95,16 @@ mkdir -p Artifacts
 
 ```sh
 # 只读触摸：统计真实接触状态，忽略悬停和离开过渡状态。
-.build/release/TriKeyProbe touch 120 Artifacts/touch-new.jsonl
+.build/release/TriKeyProbe touch 120 artifacts/touch-new.jsonl
 
 # 只读物理 Command；不保存其它键盘输入或文字内容。
-.build/release/TriKeyProbe keyboard 120 Artifacts/keyboard-new.jsonl
+.build/release/TriKeyProbe keyboard 120 artifacts/keyboard-new.jsonl
 
 # 发送一次约 0.2 秒的 Command 按下和释放；执行期间不要输入文字。
-.build/release/TriKeyProbe pulse-hid 1 Artifacts/pulse-new.jsonl
+.build/release/TriKeyProbe pulse-hid 1 artifacts/pulse-new.jsonl
 
 # 有时限的交互实验：会真实影响全局输入；先在自带文本区测试。
-.build/release/TriKeyProbe hold 120 Artifacts/hold-new.jsonl
+.build/release/TriKeyProbe hold 120 artifacts/hold-new.jsonl
 ```
 
 `hold` 使用 40 ms 激活防抖，少于三指立即释放；单次保持上限 30 秒，触摸数据中断超过
